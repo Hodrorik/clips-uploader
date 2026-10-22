@@ -71,20 +71,23 @@ def cmd_keygen(a, c):
 
 
 def cmd_dropbox(a, c):
-    c["dropboxAppKey"] = input("Dropbox app key: ").strip()
-    c["dropboxAppSecret"] = getpass.getpass("Dropbox app secret: ").strip()
+    if not c.get("dropboxAppKey") or a.reset:
+        c["dropboxAppKey"] = input("Dropbox app key: ").strip()
+        c["dropboxAppSecret"] = getpass.getpass("Dropbox app secret (hidden while pasting): ").strip()
+        save_conf(c)
     url = ("https://www.dropbox.com/oauth2/authorize?" + urllib.parse.urlencode(
         {"client_id": c["dropboxAppKey"], "response_type": "code", "token_access_type": "offline"}))
-    print(f"Open this, click Allow, copy the code:\n{url}")
+    print(f"Open this, click Allow, then paste the code straight into this Terminal (it works once, briefly):\n{url}")
     code = input("Code: ").strip()
     r = requests.post("https://api.dropboxapi.com/oauth2/token", timeout=30,
                       data={"grant_type": "authorization_code", "code": code},
                       auth=(c["dropboxAppKey"], c["dropboxAppSecret"]))
-    r.raise_for_status()
+    if r.status_code != 200:
+        sys.exit(f"Dropbox said: {r.status_code} {r.text[:300]}\nRun this command again for a fresh code "
+                 "(add --reset if the key or secret was wrong).")
     c["dropboxRefreshToken"] = r.json()["refresh_token"]
     save_conf(c)
-    print("Saved. Add these GitHub secrets: DROPBOX_APP_KEY, DROPBOX_APP_SECRET, DROPBOX_REFRESH_TOKEN")
-    print("(values are in ~/.clips_uploader/config.json)")
+    print("Saved. Dropbox is connected.")
 
 
 def cmd_meta(a, c):
@@ -173,7 +176,7 @@ def main():
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("keygen").add_argument("--force", action="store_true")
-    sub.add_parser("dropbox")
+    sub.add_parser("dropbox").add_argument("--reset", action="store_true")
     sub.add_parser("meta")
     s = sub.add_parser("instagram")
     s.add_argument("--account", required=True)
