@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign-in code</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 48px auto; padding: 0 16px; color: #1c1d20; }
+  code { display: block; padding: 12px; background: #f1f1f3; border-radius: 6px; word-break: break-all; margin: 12px 0; }
+  button { padding: 8px 14px; font-size: 15px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Sign-in code</h1>
+<p id="msg">Reading the code from the address bar…</p>
+<code id="code"></code>
+<button id="copy" hidden>Copy code</button>
+<script>
+  const p = new URLSearchParams(location.search);
+  const code = p.get("code"), err = p.get("error");
+  const msg = document.getElementById("msg"), box = document.getElementById("code");
+  if (code) {
+    msg.textContent = "Paste this into the terminal where auth.py is waiting. Nothing is stored on this page.";
+    box.textContent = code;
+    const b = document.getElementById("copy");
+    b.hidden = false;
+    b.onclick = () => navigator.clipboard.writeText(code).then(() => b.textContent = "Copied");
+  } else {
+    msg.textContent = err ? "Sign-in failed: " + err + " " + (p.get("error_description") || "") : "No code in the address.";
+    box.hidden = true;
+  }
+</script>
+</body>
+</html>

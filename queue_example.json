@@ -1,0 +1,44 @@
+{
+  "clip": "MR04",
+  "campaign": "metaphor_demo",
+  "file": "/Clips/ready/metaphor_demo/MR04_example.mp4",
+  "posts": [
+    {
+      "platform": "youtube",
+      "account": "warroom",
+      "publishAt": "2026-10-25T00:00:00+01:00",
+      "title": "Metaphor: ReFantazio demo - example title",
+      "description": "Example description.\n\n#Ad",
+      "tags": [
+        "metaphor refantazio",
+        "atlus"
+      ],
+      "categoryId": "20",
+      "language": "en-US",
+      "paidPromotion": true,
+      "madeForKids": false,
+      "containsSyntheticMedia": false
+    },
+    {
+      "platform": "instagram",
+      "account": "warroom",
+      "publishAt": "2026-10-25T00:00:00+01:00",
+      "caption": "Example caption\n#Ad\n#metaphorrefantazio",
+      "shareToFeed": true,
+      "thumbOffsetMs": 0,
+      "latestMinutes": 120,
+      "paidPartnership": true,
+      "userTags": [
+        "atlus_west"
+      ],
+      "collaborators": [],
+      "aiGenerated": false
+    },
+    {
+      "platform": "tiktok",
+      "account": "warroom",
+      "publishAt": "2026-10-25T00:00:00+01:00",
+      "inboxLeadMinutes": 20
+    }
+  ]
+}
