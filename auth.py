@@ -163,11 +163,16 @@ def cmd_tiktok(a, c):
     d = r.json()
     if "access_token" not in d:
         sys.exit(f"TikTok sign-in failed: {d}")
+    who = requests.get("https://open.tiktokapis.com/v2/user/info/", params={"fields": "open_id,display_name"},
+                       headers={"Authorization": f"Bearer {d['access_token']}"}, timeout=30).json()
+    name = who.get("data", {}).get("user", {}).get("display_name", "?")
+    if input(f"Signed in as TikTok '{name}'. Save it as '{a.account}'? [y/N] ").strip().lower() != "y":
+        sys.exit("Not saved. Switch the browser to the right TikTok account and run this again.")
     store.put("tiktok", a.account, {"accessToken": d["access_token"], "refreshToken": d["refresh_token"],
                                     "accessExpiresAt": now().timestamp() + d["expires_in"],
                                     "openId": d["open_id"], "scope": d.get("scope")})
     store.save()
-    note_account(dbx, "tiktok", a.account, {"openId": d["open_id"], "scope": d.get("scope")})
+    note_account(dbx, "tiktok", a.account, {"openId": d["open_id"], "displayName": name, "scope": d.get("scope")})
     print(f"Stored TikTok '{a.account}' (scopes: {d.get('scope')}).")
 
 
