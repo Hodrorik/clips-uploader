@@ -15,6 +15,7 @@ import argparse
 import getpass
 import json
 import os
+import re
 import secrets
 import sys
 import urllib.parse
@@ -141,10 +142,13 @@ def cmd_youtube(a, c):
 
 
 def cmd_tiktok(a, c):
-    if not c.get("tiktokClientKey"):
-        c["tiktokClientKey"] = input("TikTok client key: ").strip()
-        c["tiktokClientSecret"] = getpass.getpass("TikTok client secret: ").strip()
-        save_conf(c)
+    ok = lambda v: bool(re.fullmatch(r"[A-Za-z0-9_-]{8,}", v or ""))
+    while not (ok(c.get("tiktokClientKey")) and ok(c.get("tiktokClientSecret"))):
+        c["tiktokClientKey"] = input("TikTok client key (Sandbox): ").strip()
+        c["tiktokClientSecret"] = getpass.getpass("TikTok client secret (hidden, paste + Enter): ").strip()
+        if not (ok(c["tiktokClientKey"]) and ok(c["tiktokClientSecret"])):
+            print("That doesn't look like a key/secret (letters and numbers only). Try again.")
+    save_conf(c)
     dbx, store = open_store(c)
     state = secrets.token_urlsafe(16)
     url = "https://www.tiktok.com/v2/auth/authorize/?" + urllib.parse.urlencode({
