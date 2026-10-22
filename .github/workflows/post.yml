@@ -35,4 +35,9 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
-        run: python -m uploader.run ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: |
+          if [ -z "$DROPBOX_REFRESH_TOKEN" ] || [ -z "$STATE_KEY" ]; then
+            echo "Secrets not set up yet: nothing to do."
+            exit 0
+          fi
+          python -m uploader.run ${{ inputs.dry_run && '--dry-run' || '' }}
