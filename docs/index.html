@@ -5,19 +5,60 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Clips Uploader</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 680px; margin: 48px auto; padding: 0 16px; line-height: 1.55; color: #1c1d20; }
-  h2 { margin-top: 32px; }
+  :root { --fg: #1c1d20; --muted: #55585f; --bg: #ffffff; --link: #1a56db; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #e8e9ec; --muted: #a3a6ad; --bg: #16171a; --link: #8ab4ff; } }
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 48px auto; padding: 0 16px; line-height: 1.6; color: var(--fg); background: var(--bg); }
+  a { color: var(--link); }
+  h2 { margin-top: 36px; }
+  .muted { color: var(--muted); font-size: 0.95em; }
+  nav a { margin-right: 16px; }
 </style>
 </head>
 <body>
 <h1>Clips Uploader</h1>
-<p>A personal tool that uploads short videos to social media accounts owned by its developer. It is not offered to other users.</p>
+<nav><a href="#privacy">Privacy policy</a><a href="#terms">Terms of use</a><a href="#contact">Contact</a></nav>
+
+<p>Clips Uploader is a private, internal tool run by one person. It uploads short videos the owner has made to social media accounts the owner controls (YouTube channels, Instagram accounts and TikTok accounts). It is not offered to the public and has no other users.</p>
+
+<p><strong>Clips Uploader uses YouTube API Services.</strong> By using Clips Uploader you agree to be bound by the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>.</p>
 
 <h2 id="privacy">Privacy policy</h2>
-<p>The tool only accesses accounts owned by its developer, after the developer signs in. It stores the access tokens those sign-ins return, encrypted, in the developer's own cloud storage, and uses them only to upload the developer's videos and read their basic account info and publishing status. No data about other people is collected, sold or shared.</p>
-<p>To remove access, revoke the app in the account's settings (Instagram: Apps and websites; TikTok: Security and permissions; Google: Third-party access). Questions: contact the repository owner on GitHub.</p>
+<p class="muted">Last updated 22 October 2026</p>
+
+<h3>What the tool accesses</h3>
+<ul>
+  <li><strong>YouTube (via YouTube API Services):</strong> the basic details of the signed-in channel (channel ID, title and handle) and the ability to upload videos to that channel and read back the uploaded video's status. Scopes used: <code>youtube.upload</code> and <code>youtube.readonly</code>.</li>
+  <li><strong>Instagram (via the Instagram API):</strong> the ID and username of the owner's Instagram professional accounts, and the ability to publish Reels to them.</li>
+  <li><strong>TikTok (via the TikTok Content Posting API):</strong> the account's open ID and the ability to send a video draft to the account's inbox.</li>
+</ul>
+
+<h3>How the data is used</h3>
+<p>Data is used only to upload the owner's own videos to the owner's own accounts, to check that each upload succeeded, and to keep a log of what was posted (video ID, link and time). It is not used for advertising, profiling or any other purpose.</p>
+
+<h3>How the data is stored</h3>
+<p>Sign-in tokens are stored encrypted in the owner's private cloud storage. The upload log contains only video IDs, links, titles and timestamps. YouTube data obtained through the API is refreshed or deleted within 30 days, in line with the YouTube API Services Developer Policies.</p>
+
+<h3>Sharing</h3>
+<p>No data is sold, rented or shared with any third party. Data passes only between the owner's storage and the platform it is being uploaded to.</p>
+
+<h3>Cookies</h3>
+<p>This website and the tool do not set cookies or use tracking of any kind.</p>
+
+<h3>Google's privacy policy</h3>
+<p>Because the tool uses YouTube API Services, the <a href="https://policies.google.com/privacy">Google Privacy Policy</a> also applies to data handled by YouTube.</p>
+
+<h3>Revoking access and deleting data</h3>
+<ul>
+  <li><strong>Google / YouTube:</strong> remove Clips Uploader at <a href="https://security.google.com/settings/security/permissions">Google security settings – Third-party apps with account access</a>.</li>
+  <li><strong>Instagram / Facebook:</strong> remove it under Settings → Apps and websites, or remove the system user in Meta Business settings.</li>
+  <li><strong>TikTok:</strong> remove it under Settings and privacy → Security and permissions → Manage app permissions.</li>
+</ul>
+<p>Once access is revoked, the stored tokens stop working. To have all stored tokens and logs deleted, use the contact details below; they are deleted within 7 days.</p>
 
 <h2 id="terms">Terms of use</h2>
-<p>This tool is for the developer's own use. It is provided as is, without warranty. Each upload follows the terms of the platform it is sent to.</p>
+<p>Clips Uploader is a personal tool for its owner's use only and is provided as is, without warranty. Every upload is made under the terms of the platform it is sent to. By using the YouTube features of this tool you agree to the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>; Google's handling of data is covered by the <a href="https://policies.google.com/privacy">Google Privacy Policy</a>.</p>
+
+<h2 id="contact">Contact</h2>
+<p>Email: <a href="mailto:rodclip10@gmail.com">rodclip10@gmail.com</a></p>
 </body>
 </html>
