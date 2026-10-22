@@ -117,7 +117,7 @@ def post_one(post, job, tokens, dbx, local_copy, t):
     if p == "youtube":
         y = dict(post)
         if parse(y["publishAt"]) <= t + dt.timedelta(minutes=10):
-            y.pop("publishAt"); y["privacy"] = "public"
+            y.pop("publishAt"); y["privacy"] = y.get("privacy", "public")
         yt = youtube.service(tok, env("GOOGLE_CLIENT_ID"), env("GOOGLE_CLIENT_SECRET"))
         r = youtube.upload(yt, local_copy(src), y)
         return {"id": r["id"], "url": r["url"], "status": "CHECK" if r["problems"] else "SUCCESS",
