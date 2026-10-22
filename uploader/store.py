@@ -8,7 +8,7 @@ from cryptography.fernet import Fernet
 from .dbx import Dropbox
 
 BASE = os.environ.get("UPLOADER_DROPBOX_DIR", "/Clips/uploader")
-QUEUE_DIR = f"{BASE}/queue"
+QUEUE_DIR = os.environ.get("UPLOADER_QUEUE_DIR", f"{BASE}/queue")  # run_local.py --local uses /local
 LEDGER = f"{BASE}/ledger.json"
 ACCOUNTS = f"{BASE}/accounts.json"   # non-secret: account keys -> ids, handles
 TOKENS = f"{BASE}/tokens.enc"        # secret: Fernet-encrypted JSON
