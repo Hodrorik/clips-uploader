@@ -112,6 +112,8 @@ def post_one(post, job, tokens, dbx, local_copy, t):
         if new:
             tokens.put(p, acct, new); tokens.save(); tok = new
         r = tiktok.upload_to_inbox(tok, local_copy(src))
+        if r["status"] == "PROCESSING":
+            return {"id": r["id"], "status": "CHECK", "note": "uploaded; TikTok still processing - check the app inbox"}
         return {"id": r["id"], "status": "INBOX", "note": "finish the post from the TikTok app inbox"}
 
     if p == "youtube":

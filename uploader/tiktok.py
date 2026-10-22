@@ -72,7 +72,7 @@ def upload_to_inbox(tok, path, log=print):
                 raise TikTokError(f"chunk {i + 1}/{count}: {r.status_code} {r.text[:200]}")
     log(f"    uploaded {size / MB:.1f} MB in {count} chunk(s), publish_id {publish_id}")
 
-    deadline = time.time() + 10 * 60
+    deadline = time.time() + 3 * 60   # inbox processing can lag; never re-upload because of it
     while time.time() < deadline:
         s = _post("/post/publish/status/fetch/", token, {"publish_id": publish_id})
         status = s.get("status")
@@ -81,4 +81,4 @@ def upload_to_inbox(tok, path, log=print):
         if status == "FAILED":
             raise TikTokError(f"upload failed: {s.get('fail_reason')}")
         time.sleep(15)
-    raise TikTokError("upload still processing after 10 min")
+    return {"id": publish_id, "status": "PROCESSING"}
