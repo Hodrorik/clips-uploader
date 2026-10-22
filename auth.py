@@ -18,6 +18,7 @@ import os
 import re
 import secrets
 import sys
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -150,12 +151,15 @@ def cmd_tiktok(a, c):
             print("That doesn't look like a key/secret (letters and numbers only). Try again.")
     save_conf(c)
     dbx, store = open_store(c)
-    state = secrets.token_urlsafe(16)
+    state = ("local-" if a.auto else "") + secrets.token_urlsafe(16)
     url = "https://www.tiktok.com/v2/auth/authorize/?" + urllib.parse.urlencode({
         "client_key": c["tiktokClientKey"], "scope": "user.info.basic,video.upload",
         "response_type": "code", "redirect_uri": TIKTOK_REDIRECT, "state": state})
-    print(f"Log in to the '{a.account}' TikTok in the browser first, then open:\n{url}")
-    code = urllib.parse.unquote(input("Code shown on the callback page: ").strip())
+    if a.auto:
+        code = wait_for_code(url, state)
+    else:
+        print(f"Log in to the '{a.account}' TikTok in the browser first, then open:\n{url}")
+        code = urllib.parse.unquote(input("Code shown on the callback page: ").strip())
     r = requests.post("https://open.tiktokapis.com/v2/oauth/token/", timeout=30,
                       headers={"Content-Type": "application/x-www-form-urlencoded"},
                       data={"client_key": c["tiktokClientKey"], "client_secret": c["tiktokClientSecret"],
@@ -166,7 +170,10 @@ def cmd_tiktok(a, c):
     who = requests.get("https://open.tiktokapis.com/v2/user/info/", params={"fields": "open_id,display_name"},
                        headers={"Authorization": f"Bearer {d['access_token']}"}, timeout=30).json()
     name = who.get("data", {}).get("user", {}).get("display_name", "?")
-    if input(f"Signed in as TikTok '{name}'. Save it as '{a.account}'? [y/N] ").strip().lower() != "y":
+    if a.expect:
+        if a.expect.lower() not in name.lower():
+            sys.exit(f"Signed in as '{name}', expected '{a.expect}'. Not saved.")
+    elif input(f"Signed in as TikTok '{name}'. Save it as '{a.account}'? [y/N] ").strip().lower() != "y":
         sys.exit("Not saved. Switch the browser to the right TikTok account and run this again.")
     store.put("tiktok", a.account, {"accessToken": d["access_token"], "refreshToken": d["refresh_token"],
                                     "accessExpiresAt": now().timestamp() + d["expires_in"],
@@ -174,6 +181,46 @@ def cmd_tiktok(a, c):
     store.save()
     note_account(dbx, "tiktok", a.account, {"openId": d["open_id"], "displayName": name, "scope": d.get("scope")})
     print(f"Stored TikTok '{a.account}' (scopes: {d.get('scope')}).")
+
+
+def wait_for_code(url, state, port=8765, timeout=600):
+    """Open the TikTok login in a fresh Chrome Incognito window and catch the code on 127.0.0.1."""
+    import http.server
+    import subprocess
+    got = {}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            if q.get("state", [""])[0] == state and q.get("code"):
+                got["code"] = q["code"][0]
+                body = "Done - you can close this window."
+            else:
+                got["error"] = q.get("error_description", q.get("error", ["no code"]))[0]
+                body = "Sign-in failed: " + got["error"]
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(body.encode())
+
+        def log_message(self, *args):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", port), H)
+    srv.timeout = 5
+    subprocess.run(["osascript", "-e", 'tell application "Google Chrome" to close (every window whose mode is "incognito")'],
+                   capture_output=True)
+    subprocess.run(["open", "-na", "Google Chrome", "--args", "--incognito", url], check=True)
+    print("Opened an Incognito window: log in to the TikTok account and press Authorize.", flush=True)
+    deadline = time.time() + timeout
+    while not got and time.time() < deadline:
+        srv.handle_request()
+    srv.server_close()
+    subprocess.run(["osascript", "-e", 'tell application "Google Chrome" to close (every window whose mode is "incognito")'],
+                   capture_output=True)
+    if "code" not in got:
+        sys.exit(f"No code received: {got.get('error', 'timed out')}")
+    return got["code"]
 
 
 def cmd_show(a, c):
@@ -190,8 +237,11 @@ def main():
     s = sub.add_parser("instagram")
     s.add_argument("--account", required=True)
     s.add_argument("--username", required=True)
-    for name in ("youtube", "tiktok"):
-        sub.add_parser(name).add_argument("--account", required=True)
+    sub.add_parser("youtube").add_argument("--account", required=True)
+    s = sub.add_parser("tiktok")
+    s.add_argument("--account", required=True)
+    s.add_argument("--auto", action="store_true", help="open Incognito + catch the code automatically")
+    s.add_argument("--expect", help="only save if the TikTok display name contains this")
     sub.add_parser("show")
     a = p.parse_args()
     c = load_conf()

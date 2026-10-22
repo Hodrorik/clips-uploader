@@ -19,7 +19,10 @@
   const p = new URLSearchParams(location.search);
   const code = p.get("code"), err = p.get("error");
   const msg = document.getElementById("msg"), box = document.getElementById("code");
-  if (code) {
+  if (code && (p.get("state") || "").startsWith("local-")) {
+    msg.textContent = "Sending the code to your Mac…";
+    location.replace("http://127.0.0.1:8765/cb" + location.search);
+  } else if (code) {
     msg.textContent = "Paste this into the terminal where auth.py is waiting. Nothing is stored on this page.";
     box.textContent = code;
     const b = document.getElementById("copy");
