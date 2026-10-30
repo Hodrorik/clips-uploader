@@ -8,7 +8,8 @@ Posts clips from Dropbox to Instagram, YouTube and TikTok on official APIs, from
   - `ledger.json`: one entry per `clip:platform:account` with `status` (SUCCESS / INBOX / CHECK / FAILED / SKIPPED_LATE), `url`, `error`
   - `accounts.json`: which accounts are signed in (no secrets)
   - `tokens.enc`: sign-in tokens, encrypted with `STATE_KEY`
-  - `heartbeat.json`: last run time
+  - `heartbeat.json`: last run time and Dropbox space used (%)
+  - `cleaned.json`: clips whose video the runner deleted after posting
 - **Sign-ins:** run `auth.py` on the Mac (see its header). Local secrets: `~/.clips_uploader/config.json`.
 
 Per platform:
@@ -17,6 +18,8 @@ Per platform:
 - **TikTok:** sent to the account's TikTok inbox `inboxLeadMinutes` (default 20) before `publishAt`; the post is finished in the TikTok app (caption pasted there).
 
 Failed posts retry on the next runs, 3 attempts in total.
+
+**Clean-up:** 24 h after every post of a clip is SUCCESS or INBOX, the runner deletes the clip's video from Dropbox (it stays restorable in Dropbox's deleted files for 30 days) and logs it in `cleaned.json`. CHECK, FAILED and SKIPPED_LATE keep the file; so does a file another waiting clip still uses, and any queue file with `"keepFile": true` (`"keepHours"` changes the 24 h). Render specs, QC images and upload sheets are never touched. Runs only on a full pass of the real queue, never with `--clip` or `--local`.
 
 Tests: `pip install -r requirements.txt responses pytest && python -m pytest -q tests`
 

@@ -30,8 +30,9 @@ class Dropbox:
         return self._access
 
     def _rpc(self, endpoint, payload):
-        r = requests.post(f"{API}/{endpoint}", json=payload, timeout=60,
-                          headers={"Authorization": f"Bearer {self._token()}"})
+        r = requests.post(f"{API}/{endpoint}", data=json.dumps(payload), timeout=60,
+                          headers={"Authorization": f"Bearer {self._token()}",
+                                   "Content-Type": "application/json"})
         if r.status_code == 409:
             return None  # path not found / conflict: caller decides
         if r.status_code != 200:
@@ -44,6 +45,16 @@ class Dropbox:
         if d is None:
             raise DropboxError(f"not found: {path}")
         return d["link"]
+
+    def delete(self, path):
+        """Move a file to Dropbox's deleted files (restorable for 30 days). False if it was already gone."""
+        return self._rpc("files/delete_v2", {"path": path}) is not None
+
+    def space_used_pct(self):
+        """Share of the account's storage in use (needs the account_info.read scope)."""
+        d = self._rpc("users/get_space_usage", None)
+        alloc = (d or {}).get("allocation", {}).get("allocated")
+        return round(100 * d["used"] / alloc, 1) if alloc else None
 
     def list_folder(self, path):
         d = self._rpc("files/list_folder", {"path": path})

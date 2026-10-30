@@ -6,6 +6,11 @@ Timing per platform:
   youtube   uploaded as soon as it is queued; YouTube itself publishes at publishAt
   instagram published at publishAt (skipped if the runner is more than latestMinutes late)
   tiktok    sent to the account's TikTok inbox inboxLeadMinutes before publishAt
+
+Clean-up: once every post of a clip is SUCCESS or INBOX and CLEANUP_HOURS have passed since the
+last one went out, the clip's video file is deleted from Dropbox (restorable from Dropbox's deleted
+files for 30 days) and logged in cleaned.json. CHECK, FAILED and SKIPPED_LATE keep the file, as does
+"keepFile": true in the queue file. Only runs on a full pass of the real queue (not --clip, not --local).
 """
 import argparse
 import datetime as dt
@@ -20,6 +25,10 @@ from .store import (LEDGER, QUEUE_DIR, BASE, TokenStore, dropbox_from_env, env, 
 
 DONE = {"SUCCESS", "INBOX", "CHECK", "SKIPPED_LATE"}   # CHECK = uploaded but needs a human look
 MAX_ATTEMPTS = 3
+CLEANED = f"{BASE}/cleaned.json"
+CLEANABLE = {"SUCCESS", "INBOX"}                      # the platform has its own copy of the video
+CLEANUP_HOURS = 24
+VIDEO_EXT = (".mp4", ".mov", ".m4v")
 
 
 def due(post, t):
@@ -54,9 +63,11 @@ def run(args):
     if args.clip:
         jobs = [e for e in jobs if e["name"] == f"{args.clip}.json"]
     print(f"{iso(t)}  {len(jobs)} queued clip(s)")
+    loaded = []
 
     for entry in sorted(jobs, key=lambda e: e["name"]):
         job = dbx.read_json(entry["path_lower"], None)
+        loaded.append(job)
         clip = job["clip"]
         for post in job["posts"]:
             key = f"{clip}:{post['platform']}:{post['account']}"
@@ -88,10 +99,71 @@ def run(args):
             tokens.save()
             dbx.write_json(LEDGER, ledger)
 
-    dbx.write_json(f"{BASE}/heartbeat.json", {"lastRun": iso(), "queued": len(jobs)})
+    if not args.clip and QUEUE_DIR == f"{BASE}/queue":
+        try:
+            clean_posted(dbx, loaded, ledger, t, dry=args.dry_run)
+        except Exception:  # never let clean-up stop the heartbeat
+            traceback.print_exc()
+
+    beat = {"lastRun": iso(), "queued": len(jobs)}
+    try:
+        beat["dropboxUsedPct"] = dbx.space_used_pct()
+    except Exception as e:
+        beat["dropboxUsedPct"] = None
+        print(f"Dropbox space check skipped: {e}")
+    dbx.write_json(f"{BASE}/heartbeat.json", beat)
     failed = [k for k, v in ledger.items() if v.get("status") == "FAILED"]
     if failed:
         print(f"FAILED so far: {', '.join(failed)}")
+
+
+def job_files(job):
+    paths = {job["file"]} if job.get("file") else set()
+    return paths | {p["file"] for p in job.get("posts", []) if p.get("file")}
+
+
+def finished(job, ledger, t):
+    """True when every post is SUCCESS/INBOX and the last one went out keepHours (default 24) ago."""
+    posts = job.get("posts") or []
+    if not posts:
+        return False
+    times = []
+    for post in posts:
+        rec = ledger.get(f"{job['clip']}:{post['platform']}:{post['account']}", {})
+        if rec.get("status") not in CLEANABLE:
+            return False
+        times.append(parse(post["publishAt"]))
+        if rec.get("at"):
+            times.append(parse(rec["at"]))
+    return t - max(times) >= dt.timedelta(hours=job.get("keepHours", CLEANUP_HOURS))
+
+
+def clean_posted(dbx, jobs, ledger, t, dry=False):
+    """Delete the video of every fully posted clip, unless a clip still waiting to post uses the same file."""
+    cleaned = dbx.read_json(CLEANED, {})
+    todo, still_needed = [], set()
+    for job in jobs:
+        if job["clip"] in cleaned:
+            continue
+        if not job.get("keepFile") and finished(job, ledger, t):
+            todo.append(job)
+        else:
+            still_needed |= job_files(job)
+    for job in todo:
+        removed, kept = [], []
+        for path in sorted(job_files(job)):
+            if path in still_needed or not path.lower().endswith(VIDEO_EXT):
+                kept.append(path)
+            elif dry:
+                print(f"{job['clip']}: would delete {path}")
+            elif dbx.delete(path):
+                removed.append(path)
+        if dry:
+            continue
+        cleaned[job["clip"]] = {"deleted": removed, "kept": kept, "at": iso()}
+        print(f"{job['clip']}: cleaned up, deleted {', '.join(removed) or 'nothing'}")
+    if todo and not dry:
+        dbx.write_json(CLEANED, cleaned)
 
 
 def post_one(post, job, tokens, dbx, local_copy, t):

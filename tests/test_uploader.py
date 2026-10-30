@@ -39,6 +39,15 @@ class FakeDropbox:
         open(dest, "wb").write(b"x" * 10)
         return dest
 
+    deleted = None
+
+    def delete(self, path):
+        self.deleted = (self.deleted or []) + [path]
+        return self.deleted.count(path) == 1
+
+    def space_used_pct(self):
+        return 42.0
+
 
 def test_chunk_plan():
     assert tiktok.chunk_plan(3 * MB) == (3 * MB, 1)
@@ -181,3 +190,76 @@ def test_tiktok_inbox_upload_chunks(tmp_path, monkeypatch):
     init = json.loads(responses.calls[0].request.body)["source_info"]
     assert init == {"source": "FILE_UPLOAD", "video_size": 3 * MB, "chunk_size": 3 * MB, "total_chunk_count": 1}
     assert responses.calls[1].request.headers["Content-Range"] == f"bytes 0-{3 * MB - 1}/{3 * MB}"
+
+
+def _run_at(monkeypatch, when, dry=False, clip=None):
+    """run.run at a pretend time, with ledger timestamps at that time too."""
+    t = store.parse(when)
+    monkeypatch.setattr(run, "iso", lambda x=None: (x or t).isoformat(timespec="seconds"))
+    a = _args(when, dry)
+    a.clip = clip
+    run.run(a)
+
+
+IG_POST = {"platform": "instagram", "account": "wr", "publishAt": "2026-10-25T00:00:00+01:00", "caption": "hi"}
+
+
+def _posted_ok(monkeypatch):
+    monkeypatch.setattr(instagram, "publish_reel", lambda t, url, p: {"id": "9", "url": "https://ig/9"})
+
+
+def test_cleanup_waits_24h_then_deletes_once(monkeypatch):
+    dbx = _setup(monkeypatch, [IG_POST], IG_TOKENS)
+    _posted_ok(monkeypatch)
+    _run_at(monkeypatch, "2026-10-25T00:05:00+01:00")
+    _run_at(monkeypatch, "2026-10-25T12:00:00+01:00")
+    assert dbx.deleted is None                       # posted, but still inside the 24 h grace
+    _run_at(monkeypatch, "2026-10-26T00:10:00+01:00")
+    _run_at(monkeypatch, "2026-10-26T00:20:00+01:00")
+    assert dbx.deleted == ["/Clips/ready/t/T01.mp4"]  # deleted once, never retried
+    assert dbx.read_json(run.CLEANED, {})["T01"]["deleted"] == ["/Clips/ready/t/T01.mp4"]
+    assert dbx.read_json(f"{store.BASE}/heartbeat.json", {})["dropboxUsedPct"] == 42.0
+
+
+def test_cleanup_keeps_files_that_did_not_post(monkeypatch):
+    dbx = _setup(monkeypatch, [IG_POST], IG_TOKENS)
+    monkeypatch.setattr(instagram, "publish_reel", lambda *a: pytest.fail("should not post"))
+    _run_at(monkeypatch, "2026-10-25T03:00:00+01:00")     # SKIPPED_LATE
+    _run_at(monkeypatch, "2026-10-28T03:00:00+01:00")
+    assert dbx.deleted is None and run.CLEANED not in dbx.files
+
+
+def test_cleanup_waits_for_every_platform(monkeypatch):
+    tt = {"platform": "tiktok", "account": "wr", "publishAt": "2026-10-26T00:00:00+01:00"}
+    dbx = _setup(monkeypatch, [IG_POST, tt], {**IG_TOKENS, ("tiktok", "wr"): {"accessToken": "a", "accessExpiresAt": 9e12}})
+    _posted_ok(monkeypatch)
+    monkeypatch.setenv("TIKTOK_CLIENT_KEY", "k"); monkeypatch.setenv("TIKTOK_CLIENT_SECRET", "s")
+    monkeypatch.setattr(tiktok, "upload_to_inbox", lambda t, path: {"id": "p1", "status": "PROCESSING"})
+    _run_at(monkeypatch, "2026-10-25T00:05:00+01:00")      # IG posts
+    _run_at(monkeypatch, "2026-10-26T00:00:00+01:00")      # TikTok lands as CHECK (still processing)
+    _run_at(monkeypatch, "2026-10-29T00:00:00+01:00")
+    assert dbx.deleted is None                       # CHECK needs a human look: keep the file
+
+
+def test_cleanup_keeps_file_shared_with_waiting_clip(monkeypatch):
+    dbx = _setup(monkeypatch, [IG_POST], IG_TOKENS)
+    later = {**IG_POST, "publishAt": "2026-11-05T00:00:00+00:00"}
+    dbx.write_json(f"{store.QUEUE_DIR}/T02.json", {"clip": "T02", "file": "/Clips/ready/t/T01.mp4", "posts": [later]})
+    _posted_ok(monkeypatch)
+    _run_at(monkeypatch, "2026-10-25T00:05:00+01:00")
+    _run_at(monkeypatch, "2026-10-27T00:00:00+01:00")
+    assert dbx.deleted is None
+    assert dbx.read_json(run.CLEANED, {})["T01"]["kept"] == ["/Clips/ready/t/T01.mp4"]
+
+
+def test_cleanup_off_for_keepfile_single_clip_and_dry_run(monkeypatch):
+    dbx = _setup(monkeypatch, [IG_POST], IG_TOKENS)
+    _posted_ok(monkeypatch)
+    _run_at(monkeypatch, "2026-10-25T00:05:00+01:00")
+    _run_at(monkeypatch, "2026-10-27T00:00:00+01:00", dry=True)
+    _run_at(monkeypatch, "2026-10-27T00:00:00+01:00", clip="T01")
+    assert dbx.deleted is None
+    job = dbx.read_json(f"{store.QUEUE_DIR}/T01.json", None)
+    dbx.write_json(f"{store.QUEUE_DIR}/T01.json", {**job, "keepFile": True})
+    _run_at(monkeypatch, "2026-10-27T00:00:00+01:00")
+    assert dbx.deleted is None
